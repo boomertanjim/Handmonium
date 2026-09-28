@@ -8,57 +8,80 @@ options = vision.HandLandmarkerOptions(base_options = baseOptions,
                                        num_hands = 2)
 detector = vision.HandLandmarker.create_from_options(options)
 
+vid = cv.VideoCapture(0)
+
+if not vid.isOpened():
+    print("ERROR")
+    exit()
+
 image = mp.Image.create_from_file("image.jpg")
 
-detectorResult = detector.detect(image)
+def draw_landmarks_on_image(rgb_image, result):
+    frame = rgb_image.copy()
+    hand_landmarks_list = result.hand_landmarks
 
-for handLandmarks in detectorResult.hand_landmarks[0]:
-    print ("X--> " + str(handLandmarks.x) + "Y-->" + str(handLandmarks.y))
+    for handLandmarks in hand_landmarks_list:
+        connections = vision.HandLandmarksConnections.HAND_CONNECTIONS
+        for connection in connections:
+            start = handLandmarks[connection.start]
+            end = handLandmarks[connection.end]
 
-# result = draw_landmarks_on_image(image.numpy_view(), detectorResult)
-# cv.imshow(cv.cvtColor(result, cv.COLOR_RGB2BGR))
+            startPoint = (
+                int(start.x * frame.shape[1]),
+                int(start.y * frame.shape[0])
+            )
 
+            endPoint = (
+                int(end.x * frame.shape[1]),
+                int(end.y * frame.shape[0])
+            )
 
+            cv.line(
+                frame,
+                startPoint,
+                endPoint,
+                (255, 0, 0),
+                3
+            )
+        for landmark in handLandmarks:
+            xCord = int(landmark.x * frame.shape[1])
+            yCord = int(landmark.y * frame.shape[0])
+            print(landmark.z)
+            radius = int(14 * abs(landmark.z))
 
-
-# vid = cv.VideoCapture(0);
-
-# if not vid.isOpened():
-#     print("ERROR")
-#     exit()
-
-# with mpHands.Hands(
-#     model_complexity = 0,
-#     min_detection_confidence = 0.5,
-#     min_tracking_confidence = 0.5) as hands:
-#     while vid.isOpened():
-#         success, frame = vid.read()
-
-#         if not success:
-#             print("Ignoring empty Camera Frames")
-#             continue
-
-#         frame.flags.writable = False
-#         frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-#         results = hands.process(frame)
-
-#         frame.flags.writable = True
-#         frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-#         if results.multiHandLandmarks:
-#             for handLandmarks in results.multiHandLandmarks:
-#                 mpDrawing.draw_landmarks(
-#                     frame,
-#                     handLandmarks,
-#                     mpHands.HAND_CONNECTIONS,
-#                     mpDrawingStyles.get_default_hand_landmarks_style(),
-#                     mpDrawingStyles.get_default_hand_connections_style()
-#                 )
-
-#         cv.imshow('WebCam Test', cv.flip(frame, 1))
-
-#         if cv.waitKey(1) & 0xFF == ord('d'):
-#             break
+            cv.circle(
+                frame,
+                (xCord, yCord),
+                radius,
+                (0, 255, 0),
+                10
+            )
 
 
-# vid.release()
-# cv.destroyAllWindows()
+    return frame
+
+while vid.isOpened():
+    success, frame = vid.read()
+
+    if not success:
+        print("Ignoring empty Camera Frames")
+        continue
+
+    frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+
+    mpImage = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=frame
+    )
+
+    detectorResult = detector.detect(mpImage)
+    result = draw_landmarks_on_image(frame, detectorResult)
+    cv.imshow('Window',cv.cvtColor(result, cv.COLOR_RGB2BGR))
+
+    if cv.waitKey(1) & 0xFF == ord('d'):
+        break
+
+
+
+vid.release()
+cv.destroyAllWindows()
