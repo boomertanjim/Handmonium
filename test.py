@@ -1,26 +1,38 @@
 import cv2 as cv
+import numpy as np
 
-def rescaleFrame (frame, scale=0.75):
-    width = int(frame.shape[1] * scale)
-    height = int(frame.shape[0] * scale)
+blank = np.zeros((500, 500, 3), dtype='uint8')
 
-    dimensions = (width, height)
+cv.rectangle(blank, (0,0), (250,250), (0,255,0), thickness=cv.FILLED )
 
-    return cv.resize(frame, dimensions, interpolation=cv.INTER_AREA)
+cv.circle(blank, (blank.shape[0]//2, blank.shape[1]//2), 40, (255, 0, 243), thickness=2, )
+
+cv.imshow('green', blank)
+cv.waitKey(0)
+
+# def rescaleFrame (frame, scale=0.75):
+#     width = int(frame.shape[1] * scale)
+#     height = int(frame.shape[0] * scale)
+
+#     dimensions = (width, height)
+
+#     return cv.resize(frame, dimensions, interpolation=cv.INTER_AREA)
 
 
-capture = cv.VideoCapture("vid.mp4")
 
-while True:
-    isTrue, frame = capture.read()
 
-    frameResized = rescaleFrame(frame, 0.2)
+# capture = cv.VideoCapture("vid.mp4")
 
-    # cv.imshow('video', frame)
-    cv.imshow('Video Resized', frameResized)
+# while True:
+#     isTrue, frame = capture.read()
 
-    if cv.waitKey(20) & 0xFF == ord('d'):
-        break
+#     frameResized = rescaleFrame(frame, 0.2)
 
-capture.release()
-cv.destroyAllWindows()
+#     # cv.imshow('video', frame)
+#     cv.imshow('Video Resized', frameResized)
+
+#     if cv.waitKey(20) & 0xFF == ord('d'):
+#         break
+
+# capture.release()
+# cv.destroyAllWindows()
