@@ -1,70 +1,137 @@
-# from pynput import keyboard
+from pynput import keyboard
+
+# notes = {
+#     "a": 261.63,
+#     "s": 293.66,
+#     "d": 329.63,
+#     "e": 349.23,
+#     "f": 392.00,
+#     "g": 440.00,
+#     "h": 493.88,
+#     "j": 493.88,
+#     "k": 523.25
+# }
+
+# # def adsr(
+# #     duration, attack, decay, sustain, release):
+# #     totalSamples = int(duration * sample_rate)
+
+# #     attackSamples = int(attack * sample_rate)
+# #     decaySamples = int(decay * sample_rate)
+# #     releaseSamples = int(release * sample_rate)
+
+# #     sustainSamples = (totalSamples - attackSamples - decaySamples - releaseSamples)
+
+# #     attackCurve = np.linspace(
+# #         0,
+# #         1,
+# #         attackSamples,
+# #         endpoint=False
+# #     )
+
+# #     decayCurve = np.linspace(
+# #             1,
+# #             sustain,
+# #             decaySamples,
+# #             endpoint=False
+# #         )
+
+# #     sustainCurve = np.full(
+# #         sustainSamples,
+# #         sustain
+# #     )
+
+# #     releaseCurve = np.linspace(
+# #             sustain,
+# #             0,
+# #             releaseSamples
+# #         )
+
+# #     envelope = np.concatenate([
+# #         attackCurve,
+# #         decayCurve,
+# #         sustainCurve,
+# #         releaseCurve
+# #     ])
+
+# #     return envelope
+
+
+# def sin_wave(freq, duration, volume = 0.3):
+#     t = np.linspace(
+#         0,
+#         duration,
+#         int(sample_rate * duration),
+#         endpoint=False
+#     )
+
+#     wave = np.sin(2 * np.pi * freq * t)
+
+#     return wave * volume
+
+# def play_note(freq):
+#     wave = sin_wave(
+#         freq,
+#         duration= 0.5
+#     )
+
+#     sd.play(wave, sample_rate)
+
+#     sd.wait()
+
+# def on_press(key):
+#     try:
+#         if key.char in notes:
+#             freq = notes[key.char]
+
+#             play_note(freq)
+
+#     except AttributeError:
+#         pass
+
+# def on_release(key):
+#     if key == keyboard.Key.esc:
+#         return False
+
+
+# # envelope = adsr(3, 1, 0.5, 0.6, 1)
+# # wave *= envelope
+# with keyboard.Listener(
+#     on_press=on_press,
+#     on_release=on_release
+# ) as listener:
+#     listener.join()
 import numpy as np
 import sounddevice as sd
 
 sample_rate = 44100
-frequency = 440
-duration = 2
 
-def adsr(
-    duration, attack, decay, sustain, release):
-    totalSamples = int(duration * sample_rate)
+phase = 0
 
-    attackSamples = int(attack * sample_rate)
-    decaySamples = int(decay * sample_rate)
-    releaseSamples = int(release * sample_rate)
+def audio_callback(outdata, frames, time, status):
+    global phase
 
-    sustainSamples = (totalSamples - attackSamples - decaySamples - releaseSamples)
+    if status:
+        print(status)
 
-    attackCurve = np.linspace(
-        0,
-        1,
-        attackSamples,
-        endpoint=False
+    t = (np.arange(frames) + phase) / sample_rate
+
+    wave = np.sin(
+        2 * np.pi * 440 * t
     )
 
-    decayCurve = np.linspace(
-            1,
-            sustain,
-            decaySamples,
-            endpoint=False
-        )
+    outdata[:, 0] = wave
 
-    sustainCurve = np.full(
-        sustainSamples,
-        sustain
-    )
+    phase += frames
 
-    releaseCurve = np.linspace(
-            sustain,
-            0,
-            releaseSamples
-        )
+stream = sd.OutputStream(
+    samplerate=sample_rate,
+    channels=1,
+    callback=audio_callback
+)
 
-    envelope = np.concatenate([
-        attackCurve,
-        decayCurve,
-        sustainCurve,
-        releaseCurve
-    ])
+stream.start()
+input("WOW")
 
-    return envelope
-
-
-def sin_wave(freq, duration, volume = 0.3):
-    t = np.linspace(
-        0,
-        duration,
-        int(sample_rate * duration),
-        endpoint=False
-    )
-
-    wave = np.sin(2 * np.pi * freq * t)
-
-    return wave * volume
-
-wave = sin_wave(frequency, 3)
-envelope = adsr(3, 1, 0.5, 0.6, 1)
-wave *= envelope
-sd.play(wave, sample_rate)
-sd.wait()
+stream.stop()
+stream.close()
