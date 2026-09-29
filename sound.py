@@ -1,17 +1,3 @@
-from pynput import keyboard
-
-# notes = {
-#     "a": 261.63,
-#     "s": 293.66,
-#     "d": 329.63,
-#     "e": 349.23,
-#     "f": 392.00,
-#     "g": 440.00,
-#     "h": 493.88,
-#     "j": 493.88,
-#     "k": 523.25
-# }
-
 # # def adsr(
 # #     duration, attack, decay, sustain, release):
 # #     totalSamples = int(duration * sample_rate)
@@ -69,29 +55,7 @@ from pynput import keyboard
 
 #     return wave * volume
 
-# def play_note(freq):
-#     wave = sin_wave(
-#         freq,
-#         duration= 0.5
-#     )
 
-#     sd.play(wave, sample_rate)
-
-#     sd.wait()
-
-# def on_press(key):
-#     try:
-#         if key.char in notes:
-#             freq = notes[key.char]
-
-#             play_note(freq)
-
-#     except AttributeError:
-#         pass
-
-# def on_release(key):
-#     if key == keyboard.Key.esc:
-#         return False
 
 
 # # envelope = adsr(3, 1, 0.5, 0.6, 1)
@@ -101,24 +65,65 @@ from pynput import keyboard
 #     on_release=on_release
 # ) as listener:
 #     listener.join()
+#
+#
+
+
+from pynput import keyboard
 import numpy as np
 import sounddevice as sd
 
 sample_rate = 44100
 
 phase = 0
+keyHeld = False
+
+notes = {
+    "a": 261.63,
+    "s": 293.66,
+    "d": 329.63,
+    "e": 349.23,
+    "f": 392.00,
+    "g": 440.00,
+    "h": 493.88,
+    "j": 493.88,
+    "k": 523.25
+}
+
+def on_press(key):
+    global keyHeld
+    try:
+        if key.char == "s":
+            keyHeld = True
+        
+
+    except AttributeError:
+        pass
+
+def on_release(key):
+    global keyHeld
+    try:
+        if key.char == "s":
+            keyHeld = False
+    except AttributeError:
+        if key == keyboard.Key.esc:
+            return False
 
 def audio_callback(outdata, frames, time, status):
     global phase
 
-    if status:
-        print(status)
-
     t = (np.arange(frames) + phase) / sample_rate
 
-    wave = np.sin(
-        2 * np.pi * 440 * t
-    )
+
+    if keyHeld:
+        wave = np.sin(
+            2 * np.pi * 440 * t
+        )
+    else:
+        wave = np.sin(
+            2 * np.pi * 0 * t
+        )
+
 
     outdata[:, 0] = wave
 
@@ -127,11 +132,13 @@ def audio_callback(outdata, frames, time, status):
 stream = sd.OutputStream(
     samplerate=sample_rate,
     channels=1,
+    blocksize=128,
     callback=audio_callback
 )
 
 stream.start()
-input("WOW")
+with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+    listener.join()
 
 stream.stop()
 stream.close()
