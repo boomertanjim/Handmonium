@@ -74,9 +74,11 @@ import numpy as np
 import sounddevice as sd
 
 sample_rate = 44100
+voice_gain = 0.1
+master_gain = 0.8
 
-phase = 0
-keyHeld = False
+phase = {}
+keyHeld = []
 
 notes = {
     "a": 261.63,
@@ -93,8 +95,10 @@ notes = {
 def on_press(key):
     global keyHeld
     try:
-        if key.char == "s":
-            keyHeld = True
+        if key.char in notes:
+            if key.char not in keyHeld:
+                keyHeld.append(key.char)
+                phase[key.char] = 0
         
 
     except AttributeError:
@@ -103,31 +107,34 @@ def on_press(key):
 def on_release(key):
     global keyHeld
     try:
-        if key.char == "s":
-            keyHeld = False
+        if key.char in notes:
+            if key.char in keyHeld:
+                keyHeld.remove(key.char)
+            if key.char in phase:
+                del phase[key.char]
     except AttributeError:
         if key == keyboard.Key.esc:
             return False
 
 def audio_callback(outdata, frames, time, status):
     global phase
-
-    t = (np.arange(frames) + phase) / sample_rate
-
+    wave = np.zeros(frames)
 
     if keyHeld:
-        wave = np.sin(
-            2 * np.pi * 440 * t
-        )
-    else:
-        wave = np.sin(
-            2 * np.pi * 0 * t
-        )
+        for i in keyHeld:
+            if i not in phase:
+                continue
+            t = (np.arange(frames) + phase[i]) / sample_rate
+            oscillator = np.sin(2 * np.pi * notes[i] * t)
 
+            wave += oscillator * voice_gain
+
+    wave *= master_gain
 
     outdata[:, 0] = wave
 
-    phase += frames
+    for key in list(phase):
+        phase[key] = phase[key] + frames
 
 stream = sd.OutputStream(
     samplerate=sample_rate,
