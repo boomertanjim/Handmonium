@@ -13,9 +13,9 @@ detector = vision.HandLandmarker.create_from_options(options)
 
 vid = cv.VideoCapture(0)
 
-# vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
-# vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
-# vid.set(cv.CAP_PROP_FPS, 30)
+vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
+vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
+vid.set(cv.CAP_PROP_FPS, 30)
 
 
 # Display Vars
