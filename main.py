@@ -1,3 +1,4 @@
+import sys
 import cv2 as cv
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -5,17 +6,25 @@ from mediapipe.tasks.python import vision
 import math
 import numpy as np
 import sounddevice as sd
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QComboBox
+)
 
 baseOptions = python.BaseOptions(model_asset_path = "hand_landmarker.task")
 options = vision.HandLandmarkerOptions(base_options = baseOptions,
                                        num_hands = 2)
 detector = vision.HandLandmarker.create_from_options(options)
 
-vid = cv.VideoCapture(0)
-
-vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
-vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
-vid.set(cv.CAP_PROP_FPS, 30)
+# vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
+# vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
+# vid.set(cv.CAP_PROP_FPS, 30)
 
 
 # Display Vars
@@ -81,11 +90,104 @@ notes = {
 
 }
 
-if not vid.isOpened():
-    print("ERROR")
-    exit()
+class CameraWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-image = mp.Image.create_from_file("image.jpg")
+        self.setWindowTitle("WebCam Viewer")
+        self.resize(800, 600)
+
+        self.cameraLabel = QLabel()
+        self.cameraLabel.setAlignment(Qt.AlignCenter)
+        self.dropdown = QComboBox()
+        self.find_cameras()
+
+        self.dropdown.currentIndexChanged.connect(self.change_camera)
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        layout.addWidget(self.cameraLabel)
+        layout.addWidget(self.dropdown)
+
+        self.setCentralWidget(central)
+
+        self.camera = None
+
+        if self.dropdown.count() > 0:
+            self.change_camera(0)
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_camera)
+        self.timer.start(30)
+
+    def find_cameras(self):
+        for index in range(10):
+            camera = cv.VideoCapture(index)
+
+            if camera.isOpened():
+                self.dropdown.addItem(f"Camera {index}", index)
+                camera.release()
+            else:
+                camera.release()
+
+    def change_camera(self, dropdownIndex):
+        if self.camera is not None:
+            self.camera.release()
+            self.camera = None   
+
+        cameraIndex = self.dropdown.itemData(dropdownIndex)
+
+        if cameraIndex is None:
+            return
+        self.camera = cv.VideoCapture(cameraIndex)         
+
+    def update_camera(self):
+        success, frame = self.camera.read()
+
+        if not success:
+            return
+        frame = cv.flip(cv.cvtColor(frame, cv.COLOR_BGR2RGB), 1)
+
+        mpImage = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=frame
+        )
+
+        detectorResult = detector.detect(mpImage)
+        update_hand_pressure(detectorResult)
+    
+        define_points(detectorResult)
+        distances = distance_Calc()
+        update_touch(distances)
+        result = draw_landmarks_on_image(frame, detectorResult)
+
+        height, width, channels = result.shape
+        bytesPerLine = channels * width
+
+        image = QImage(
+            result.data,
+            width,
+            height,
+            bytesPerLine,
+            QImage.Format_RGB888
+        )
+
+        pixmap = QPixmap.fromImage(image)
+
+        pixmap = pixmap.scaled(
+            self.cameraLabel.size(),
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation
+        )
+
+        self.cameraLabel.setPixmap(pixmap)
+
+    def closeEvent(self, event):
+        self.camera.release()
+        event.accept()
 
 # Display Functions
 
@@ -446,42 +548,12 @@ stream = sd.OutputStream(
     callback=audio_callback
 )
 
+app = QApplication(sys.argv)
 stream.start()
 
-
-while vid.isOpened():
-    success, frame = vid.read()
-
-    if not success:
-        print("Ignoring empty Camera Frames")
-        continue
-
-    frame = cv.flip(cv.cvtColor(frame, cv.COLOR_BGR2RGB), 1)
-
-    mpImage = mp.Image(
-        image_format=mp.ImageFormat.SRGB,
-        data=frame
-    )
-
-
-    detectorResult = detector.detect(mpImage)
-    update_hand_pressure(detectorResult)
-
-    define_points(detectorResult)
-    distances = distance_Calc()
-    # print(distances)
-    update_touch(distances)
-    result = draw_landmarks_on_image(frame, detectorResult)
-    cv.imshow('Window', cv.cvtColor(result, cv.COLOR_RGB2BGR))
-
-    if cv.waitKey(1) & 0xFF == ord('d'):
-        break
-
-
-
+window = CameraWindow()
+window.show()
+app.exec()
 
 stream.stop()
 stream.close()
-
-vid.release()
-cv.destroyAllWindows()
