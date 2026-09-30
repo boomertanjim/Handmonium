@@ -11,7 +11,7 @@ options = vision.HandLandmarkerOptions(base_options = baseOptions,
                                        num_hands = 2)
 detector = vision.HandLandmarker.create_from_options(options)
 
-vid = cv.VideoCapture(1)
+vid = cv.VideoCapture(0)
 
 # vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
 # vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
@@ -28,6 +28,18 @@ smoothDistances = [
     [0.0, 0.0, 0.0, 0.0]
 ]
 smoothing = 0.25
+
+touchCandidate = [
+    [False, False, False, False],
+    [False, False, False, False]
+]
+
+touchCounter = [
+    [0, 0, 0, 0],
+    [0, 0, 0, 0]
+]
+
+debounceFrames = 2
 
 touch = [
     [False, False, False, False],[False, False, False, False]
@@ -187,23 +199,37 @@ def update_touch(distances):
             note_name = note_names[hand][finger]
             distance = distances[hand][finger]
 
-            smoothDistances[hand][finger] += (
-                distance - smoothDistances[hand][finger]
-            ) * smoothing
+            # smoothDistances[hand][finger] += (
+            #     distance - smoothDistances[hand][finger]
+            # ) * smoothing
 
-            distance = smoothDistances[hand][finger]
+            # distance = smoothDistances[hand][finger]
 
             if not touch[hand][finger]:
                 if distance > 0 and distance < touch_on:
-                    touch[hand][finger] = True
-                    print("NOTE ON: ", note_name)
-                    start_note(note_name)
+                    touchCounter[hand][finger] += 1
+
+                    if touchCounter[hand][finger] >= debounceFrames:
+                        touch[hand][finger] = True
+                        touchCounter[hand][finger] = 0
+                        print("NOTE ON: ", note_name)
+                        start_note(note_name)
+                else:
+                    touchCounter[hand][finger] = 0
 
             else:
                 if distance == 0 or distance > touch_off:
-                    touch[hand][finger] = False
-                    print("NOTE OFF: ", note_name)
-                    stop_note(note_name)
+
+                    touchCounter[hand][finger] += 1
+
+                    if touchCounter[hand][finger] >= debounceFrames:
+                        touch[hand][finger] = False
+                        touchCounter[hand][finger] = 0
+                        print("NOTE OFF: ", note_name)
+                        stop_note(note_name)
+
+                else:
+                    touchCounter[hand][finger] = 0
 
 def start_note(note):
     if note not in envelope:
@@ -449,7 +475,7 @@ while vid.isOpened():
 
     define_points(detectorResult)
     distances = distance_Calc()
-    print(distances)
+    # print(distances)
     update_touch(distances)
     result = draw_landmarks_on_image(frame, detectorResult)
     cv.imshow('Window', cv.cvtColor(result, cv.COLOR_RGB2BGR))
