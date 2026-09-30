@@ -35,29 +35,29 @@ def harmonium_wave(freq, t):
 
     harmonics = {
         1: 1.00,
-        2: 0.60,
-        3: 0.80,
-        4: 0.40,
-        5: 0.50,
-        6: 0.20,
-        7: 0.30,
-        8: 0.16,
-        9: 0.12,
-        10: 0.10,
-        11: 0.08,
-        12: 0.07,
-        13: 0.06,
-        14: 0.05,
-        15: 0.045,
-        16: 0.04,
-        17: 0.035,
-        18: 0.03,
-        19: 0.025,
-        20: 0.02
+        2: 0.75,
+        3: 0.85,
+        4: 0.55,
+        5: 0.65,
+        6: 0.35,
+        7: 0.45,
+        8: 0.28,
+        9: 0.32,
+        10: 0.20,
+        11: 0.24,
+        12: 0.15,
+        13: 0.18,
+        14: 0.12,
+        15: 0.14,
+        16: 0.09,
+        17: 0.11,
+        18: 0.07,
+        19: 0.09,
+        20: 0.05
     }
 
     for harmonic, amplitude in harmonics.items():
-        wave += amplitude * np.sin(2 * np.pi * harmonic * t)
+        wave += amplitude * np.sin(2 * np.pi * harmonic * freq * t)
 
     wave /= 3.95
 
@@ -186,11 +186,13 @@ def audio_callback(outdata, frames, time, status):
         )
 
         reed1 = harmonium_wave(frequency, t)
+        reed1 = np.tanh(reed1 * 2.5)
         reed2 = harmonium_wave(frequency * secondReedDetune, t)
+        reed2 = np.tanh(reed2 * 2.5)
 
         oscillator = (reed1 + reed2 * secondReedGain)
 
-        oscillator = enclosure_filter(oscillator, frequency)
+        # oscillator = enclosure_filter(oscillator, frequency)
 
         env = create_envelope(i, frames)
 
@@ -199,8 +201,6 @@ def audio_callback(outdata, frames, time, status):
         phase[i] += frames
 
     wave *= master_gain
-
-    wave = np.tanh(wave)
 
     outdata[:, 0] = wave
 
