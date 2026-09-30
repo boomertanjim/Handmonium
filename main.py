@@ -92,42 +92,27 @@ image = mp.Image.create_from_file("image.jpg")
 def draw_landmarks_on_image(rgb_image, result):
     frame = rgb_image.copy()
     hand_landmarks_list = result.hand_landmarks
+    wanted = [4, 8, 12, 16, 20]
 
     for handLandmarks in hand_landmarks_list:
-        connections = vision.HandLandmarksConnections.HAND_CONNECTIONS
-        for connection in connections:
-            start = handLandmarks[connection.start]
-            end = handLandmarks[connection.end]
+        for landmarkIndex, landmark in enumerate(handLandmarks):
+            if landmarkIndex in wanted:
+                xCord = int(landmark.x * frame.shape[1])
+                yCord = int(landmark.y * frame.shape[0])
+                radius = int(17 * abs(landmark.z))
 
-            startPoint = (
-                int(start.x * frame.shape[1]),
-                int(start.y * frame.shape[0])
-            )
+                if landmarkIndex == 4:
+                    color = (255, 0, 0)
+                else:
+                    color = (0, 255, 0)
 
-            endPoint = (
-                int(end.x * frame.shape[1]),
-                int(end.y * frame.shape[0])
-            )
-
-            cv.line(
-                frame,
-                startPoint,
-                endPoint,
-                (255, 0, 0),
-                3
-            )
-        for landmark in handLandmarks:
-            xCord = int(landmark.x * frame.shape[1])
-            yCord = int(landmark.y * frame.shape[0])
-            radius = int(14 * abs(landmark.z))
-
-            cv.circle(
-                frame,
-                (xCord, yCord),
-                radius,
-                (0, 255, 0),
-                10
-            )
+                cv.circle(
+                    frame,
+                    (xCord, yCord),
+                    radius,
+                    color,
+                    10
+                )
 
 
     return frame
