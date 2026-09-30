@@ -14,7 +14,11 @@ phase = {}
 envelope = {}
 keyHeld = []
 
-bellowsPressure = 1.0
+bellowsPressure = 0.0
+pumpRate = 0.8
+leakRate = 0.08
+pumpHeld = False
+
 pitchDrift = 0.8
 secondReedGain = 0.18
 secondReedDetune = 1.003
@@ -76,6 +80,24 @@ def enclosure_filter(wave, freq ):
 
     return wave
 
+def update_bellows(frames):
+    global bellowsPressure
+
+    dt = frames / sample_rate
+
+    if pumpHeld:
+        bellowsPressure += pumpRate * dt
+
+    bellowsPressure -= leakRate * dt
+
+    bellowsPressure = np.clip(
+        bellowsPressure,
+        0.0,
+        1.0
+    )
+
+    return bellowsPressure
+
 def create_envelope(note, frames):
     env = envelope[note]
     state = env["state"]
@@ -134,7 +156,11 @@ def create_envelope(note, frames):
 
 def on_press(key):
     global keyHeld
+    global pumpHeld
     try:
+        if key == keyboard.Key.space:
+            pumpHeld = True
+            return
         if key.char in notes:
             if key.char not in keyHeld:
                 keyHeld.append(key.char)
@@ -153,7 +179,11 @@ def on_press(key):
 
 def on_release(key):
     global keyHeld
+    global pumpHeld
     try:
+        if key == keyboard.Key.space:
+            pumpHeld = False
+            return
         if key.char in notes:
             if key.char in keyHeld:
                 keyHeld.remove(key.char)
@@ -170,6 +200,7 @@ def on_release(key):
 def audio_callback(outdata, frames, time, status):
     global phase
     wave = np.zeros(frames)
+    current_pressure = update_bellows(frames)
 
     for i in list(envelope):
         if i not in phase:
@@ -179,16 +210,15 @@ def audio_callback(outdata, frames, time, status):
 
         freq = notes[i]
 
-        current_pressure = bellowsPressure
-
         frequency = (
-            freq + pitchDrift * (current_pressure - 1.0)
+            freq + pitchDrift * (current_pressure - 0.7)
         )
 
+        reedExcitation = current_pressure ** 1.5
         reed1 = harmonium_wave(frequency, t)
-        reed1 = np.tanh(reed1 * 2.5)
+        reed1 = np.tanh(reed1 * (1.0 + current_pressure * 2.0))
         reed2 = harmonium_wave(frequency * secondReedDetune, t)
-        reed2 = np.tanh(reed2 * 2.5)
+        reed2 = np.tanh(reed2 * (1.0 + current_pressure * 2.0))
 
         oscillator = (reed1 + reed2 * secondReedGain)
 
@@ -196,7 +226,7 @@ def audio_callback(outdata, frames, time, status):
 
         env = create_envelope(i, frames)
 
-        wave += oscillator * env * current_pressure * voice_gain
+        wave += oscillator * env * reedExcitation * voice_gain
 
         phase[i] += frames
 
