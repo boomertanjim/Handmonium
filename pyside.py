@@ -5,11 +5,9 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
-    QPushButton,
     QWidget,
     QVBoxLayout,
     QLabel,
-    QSlider,
     QComboBox
 )
 
