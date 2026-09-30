@@ -141,16 +141,25 @@ def define_points (result):
     ]
 
     hands = result.hand_landmarks
+    handedness = result.handedness
 
     for handIndex, hand in enumerate(hands):
-        cords[handIndex][0] = (hand[4].x, hand[4].y)
-        cords[handIndex][1] = (hand[8].x, hand[8].y)
-        cords[handIndex][2] = (hand[12].x, hand[12].y)
-        cords[handIndex][3] = (hand[16].x, hand[16].y)
-        cords[handIndex][4] = (hand[20].x, hand[20].y)
 
-        cords[handIndex][5] = (hand[0].x, hand[0].y)
-        cords[handIndex][6] = (hand[9].x, hand[9].y)
+        label = handedness[handIndex][0].category_name
+
+        if label == "Right":
+            handSlot = 0
+        else:
+            handSlot = 1
+        
+        cords[handSlot][0] = (hand[4].x, hand[4].y)
+        cords[handSlot][1] = (hand[8].x, hand[8].y)
+        cords[handSlot][2] = (hand[12].x, hand[12].y)
+        cords[handSlot][3] = (hand[16].x, hand[16].y)
+        cords[handSlot][4] = (hand[20].x, hand[20].y)
+
+        cords[handSlot][5] = (hand[0].x, hand[0].y)
+        cords[handSlot][6] = (hand[9].x, hand[9].y)
 
 def find_distance (a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
@@ -270,15 +279,15 @@ def update_hand_pressure(result):
 
     avg_y = sum(palm_heights) / len(palm_heights)
 
-    print(
-        f"Y: {avg_y:.2f} | "
-        f"Target: {targetPressure:.2f} | "
-        f"Pressure: {bellowsPressure:.2f}"
-    )
+    # print(
+    #     f"Y: {avg_y:.2f} | "
+    #     f"Target: {targetPressure:.2f} | "
+    #     f"Pressure: {bellowsPressure:.2f}"
+    # )
 
     targetPressure = np.interp(
         avg_y,
-        [0.20, 0.80],
+        [0.20, 0.90],
         [1.0, 0.0]
     )
 
