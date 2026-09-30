@@ -1,5 +1,7 @@
 import sys
 import cv2 as cv
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -10,43 +12,28 @@ from PySide6.QtWidgets import (
     QSlider,
     QComboBox
 )
-from PySide6.QtCore import Qt
 
-camera = cv.VideoCapture(0)
+class CameraWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("WebCam Viewer")
+        self.resize(800, 600)
+
+        self.camera = cv.VideoCapture(0)
+
+        self.cameraLabel = QLabel()
+        self.cameraLabel.setAlignment(Qt.AlignCenter)
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.addWidget(self.cameraLabel)
+
+        self.setCentralWidget(central)
+
 app = QApplication(sys.argv)
-
-def slider_func(value):
-    print("Volume: ", value)
-
-window = QMainWindow()
-window.setWindowTitle("My App")
-
-central = QWidget()
-layout = QVBoxLayout()
-label = QLabel("Tung Tung Sahur")
-button = QPushButton("Click Me")
-dropdown = QComboBox()
-dropdown.addItem("1")
-dropdown.addItem("2")
-dropdown.addItem("3")
-dropdown.addItem("4")
-slider = QSlider(Qt.Horizontal)
-slider.setRange(0, 100)
-slider.setValue(50)
-slider.valueChanged.connect(slider_func)
-
-button.clicked.connect(lambda: label.setText("Tung Tung Gone Bhaya"))
-
-layout.setContentsMargins(50, 50, 50, 50)
-layout.addWidget(label)
-layout.addWidget(button)
-layout.addWidget(slider)
-layout.addWidget(dropdown)
-
-central.setLayout(layout)
-window.setCentralWidget(central)
-
-window.resize(800, 500)
+window = CameraWindow()
 window.show()
-
 app.exec()
