@@ -11,7 +11,7 @@ options = vision.HandLandmarkerOptions(base_options = baseOptions,
                                        num_hands = 2)
 detector = vision.HandLandmarker.create_from_options(options)
 
-vid = cv.VideoCapture(0)
+vid = cv.VideoCapture(1)
 
 # vid.set(cv.CAP_PROP_FRAME_WIDTH, 1920)
 # vid.set(cv.CAP_PROP_FRAME_HEIGHT, 1080)
@@ -20,21 +20,14 @@ vid = cv.VideoCapture(0)
 
 # Display Vars
 cords = [
-    [
-        (),
-        (),
-        (),
-        (),
-        ()
-    ],
-    [
-        (),
-        (),
-        (),
-        (),
-        ()
-    ]
+    [(), (), (), (), (), (), ()],
+    [(), (), (), (), (), (), ()]
 ]
+smoothDistances = [
+    [0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0]
+]
+smoothing = 0.25
 
 touch = [
     [False, False, False, False],[False, False, False, False]
@@ -54,10 +47,11 @@ phase = {}
 envelope = {}
 keyHeld = []
 
-bellowsPressure = 2.0
+bellowsPressure = 0.0
 pumpRate = 0.8
 leakRate = 0.08
-pumpHeld = False
+targetPressure = 0.0
+pressureSmoothing = 0.15
 
 pitchDrift = 0.8
 secondReedGain = 0.18
@@ -130,15 +124,21 @@ def define_points (result):
     global cords
 
     cords = [
-        [(), (), (), (), ()],
-        [(), (), (), (), ()]
+        [(), (), (), (), (), (), ()],
+        [(), (), (), (), (), (), ()]
     ]
 
     hands = result.hand_landmarks
 
     for handIndex, hand in enumerate(hands):
-        for i in range(4, 21, 4):
-            cords[handIndex][i // 4 - 1] = (hand[i].x, hand[i].y)
+        cords[handIndex][0] = (hand[4].x, hand[4].y)
+        cords[handIndex][1] = (hand[8].x, hand[8].y)
+        cords[handIndex][2] = (hand[12].x, hand[12].y)
+        cords[handIndex][3] = (hand[16].x, hand[16].y)
+        cords[handIndex][4] = (hand[20].x, hand[20].y)
+
+        cords[handIndex][5] = (hand[0].x, hand[0].y)
+        cords[handIndex][6] = (hand[9].x, hand[9].y)
 
 def find_distance (a, b):
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
@@ -149,11 +149,25 @@ def distance_Calc():
     for i in range(2):
         hand = []
 
+        if not cords[i][0]:
+            ans.append([0,0,0,0])
+            continue
+
+        thumb = cords[i][0]
+
+        wrist = cords[i][5]
+        middle_mcp = cords[i][6]
+
+        handSize = find_distance(wrist, middle_mcp)
+
+        if handSize == 0:
+            ans.append([0, 0, 0, 0])
+            continue
+
         for j in range (1, 5):
-            if cords[i][0] and cords [i][j]:
-                hand.append(find_distance(cords[i][0], cords[i][j]))
-            else:
-                hand.append(0)
+            fingerDistance = find_distance(thumb, cords[i][j])
+            normalizedDistance = fingerDistance / handSize
+            hand.append(normalizedDistance)
 
         ans.append(hand)
 
@@ -165,25 +179,31 @@ def update_touch(distances):
         ["index1", "middle1", "ring1","pinky1"]
     ]
 
+    touch_on = 0.20
+    touch_off = 0.30
+
     for hand in range(2):
         for finger in range(4):
             note_name = note_names[hand][finger]
             distance = distances[hand][finger]
 
-            touching = (
-                distance > 0
-                and distance < 0.044
-            )
+            smoothDistances[hand][finger] += (
+                distance - smoothDistances[hand][finger]
+            ) * smoothing
 
-            if touching and not touch[hand][finger]:
-                touch[hand][finger] = True
-                print("NOTE ON: ", note_name)
-                start_note(note_name)
+            distance = smoothDistances[hand][finger]
 
-            elif not touching and touch[hand][finger]:
-                touch[hand][finger] = False
-                print("NOTE OFF: ", note_name)
-                stop_note(note_name)
+            if not touch[hand][finger]:
+                if distance > 0 and distance < touch_on:
+                    touch[hand][finger] = True
+                    print("NOTE ON: ", note_name)
+                    start_note(note_name)
+
+            else:
+                if distance == 0 or distance > touch_off:
+                    touch[hand][finger] = False
+                    print("NOTE OFF: ", note_name)
+                    stop_note(note_name)
 
 def start_note(note):
     if note not in envelope:
@@ -206,6 +226,35 @@ def stop_note(note):
         env["release_start"] = env["level"]
         env["state"] = "release"
         env["position"] = 0
+
+def update_hand_pressure(result):
+    global targetPressure
+
+    hands = result.hand_landmarks
+
+    if len(hands) == 0:
+        targetPressure = 0.0
+        return
+
+    palm_heights = []
+
+    for hand in hands:
+        wrist = hand[0]
+        palm_heights.append(wrist.y)
+
+    avg_y = sum(palm_heights) / len(palm_heights)
+
+    print(
+        f"Y: {avg_y:.2f} | "
+        f"Target: {targetPressure:.2f} | "
+        f"Pressure: {bellowsPressure:.2f}"
+    )
+
+    targetPressure = np.interp(
+        avg_y,
+        [0.20, 0.80],
+        [1.0, 0.0]
+    )
 
 
 # Audio Functions
@@ -256,20 +305,19 @@ def enclosure_filter(wave, freq ):
     return wave
 
 def update_bellows(frames):
-    # global bellowsPressure
+    global bellowsPressure
 
     # dt = frames / sample_rate
 
-    # if pumpHeld:
-    #     bellowsPressure += pumpRate * dt
+    bellowsPressure += (
+        targetPressure - bellowsPressure
+    ) * pressureSmoothing
 
-    # bellowsPressure -= leakRate * dt
-
-    # bellowsPressure = np.clip(
-    #     bellowsPressure,
-    #     0.0,
-    #     1.0
-    # )
+    bellowsPressure = np.clip(
+        bellowsPressure,
+        0.0,
+        1.0
+    )
 
     return bellowsPressure
 
@@ -397,11 +445,11 @@ while vid.isOpened():
 
 
     detectorResult = detector.detect(mpImage)
-
-
+    update_hand_pressure(detectorResult)
 
     define_points(detectorResult)
     distances = distance_Calc()
+    print(distances)
     update_touch(distances)
     result = draw_landmarks_on_image(frame, detectorResult)
     cv.imshow('Window', cv.cvtColor(result, cv.COLOR_RGB2BGR))
