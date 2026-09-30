@@ -200,8 +200,8 @@ def update_touch(distances):
         ["index1", "middle1", "ring1","pinky1"]
     ]
 
-    touch_on = 0.20
-    touch_off = 0.30
+    touch_on = 0.25
+    touch_off = 0.32
 
     for hand in range(2):
         for finger in range(4):
