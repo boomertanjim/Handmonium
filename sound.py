@@ -1,74 +1,3 @@
-# # def adsr(
-# #     duration, attack, decay, sustain, release):
-# #     totalSamples = int(duration * sample_rate)
-
-# #     attackSamples = int(attack * sample_rate)
-# #     decaySamples = int(decay * sample_rate)
-# #     releaseSamples = int(release * sample_rate)
-
-# #     sustainSamples = (totalSamples - attackSamples - decaySamples - releaseSamples)
-
-# #     attackCurve = np.linspace(
-# #         0,
-# #         1,
-# #         attackSamples,
-# #         endpoint=False
-# #     )
-
-# #     decayCurve = np.linspace(
-# #             1,
-# #             sustain,
-# #             decaySamples,
-# #             endpoint=False
-# #         )
-
-# #     sustainCurve = np.full(
-# #         sustainSamples,
-# #         sustain
-# #     )
-
-# #     releaseCurve = np.linspace(
-# #             sustain,
-# #             0,
-# #             releaseSamples
-# #         )
-
-# #     envelope = np.concatenate([
-# #         attackCurve,
-# #         decayCurve,
-# #         sustainCurve,
-# #         releaseCurve
-# #     ])
-
-# #     return envelope
-
-
-# def sin_wave(freq, duration, volume = 0.3):
-#     t = np.linspace(
-#         0,
-#         duration,
-#         int(sample_rate * duration),
-#         endpoint=False
-#     )
-
-#     wave = np.sin(2 * np.pi * freq * t)
-
-#     return wave * volume
-
-
-
-
-# # envelope = adsr(3, 1, 0.5, 0.6, 1)
-# # wave *= envelope
-# with keyboard.Listener(
-#     on_press=on_press,
-#     on_release=on_release
-# ) as listener:
-#     listener.join()
-#
-#
-
-
 from pynput import keyboard
 import numpy as np
 import sounddevice as sd
@@ -77,7 +6,15 @@ sample_rate = 44100
 voice_gain = 0.1
 master_gain = 0.8
 
+attack = 0.1
+decay = 0.05
+
+sustain = 0.9
+
+release = 0.1
+
 phase = {}
+envelope = {}
 keyHeld = []
 
 notes = {
@@ -92,6 +29,62 @@ notes = {
     "k": 523.25
 }
 
+def create_envelope(note, frames):
+    env = envelope[note]
+    state = env["state"]
+    position = env["position"]
+    level = env["level"]
+
+    output = np.zeros(frames)
+
+    for i in range(frames):
+        if state == "attack":
+            level = position / (attack * sample_rate)
+
+            position += 1
+
+            if position >= (attack * sample_rate):
+                position = 0
+                level = 1.0
+                state = "decay"
+
+        elif state == "decay":
+            progress = position / (decay * sample_rate)
+
+            level = 1.0 - ((1.0 - sustain) * progress)
+
+            position += 1
+
+            if position >= (decay * sample_rate):
+                position = 0
+                level = sustain
+                state = "sustain"
+
+        elif state == "sustain":
+            level = sustain
+
+        elif state == "release":
+            progress = position / (release * sample_rate)
+
+            level = env["release_start"] * (1.0 - progress)
+
+            position += 1
+
+            if position >= (release * sample_rate):
+                level = 0
+                state = "finished"
+        
+        elif state == "finished":
+            level = 0
+
+        output[i] = level
+
+    env["state"] = state
+    env["position"] = position
+    env["level"] = level
+
+    return output
+
 def on_press(key):
     global keyHeld
     try:
@@ -99,6 +92,13 @@ def on_press(key):
             if key.char not in keyHeld:
                 keyHeld.append(key.char)
                 phase[key.char] = 0
+
+                envelope[key.char] = {
+                    "state": "attack",
+                    "position": 0,
+                    "level": 0,
+                    "release_start": 0
+                }
         
 
     except AttributeError:
@@ -110,8 +110,12 @@ def on_release(key):
         if key.char in notes:
             if key.char in keyHeld:
                 keyHeld.remove(key.char)
-            if key.char in phase:
-                del phase[key.char]
+            if key.char in envelope:
+                env = envelope[key.char]
+
+                env["release_start"] = env["level"]
+                env["state"] = "release"
+                env["position"] = 0
     except AttributeError:
         if key == keyboard.Key.esc:
             return False
@@ -120,21 +124,26 @@ def audio_callback(outdata, frames, time, status):
     global phase
     wave = np.zeros(frames)
 
-    if keyHeld:
-        for i in keyHeld:
-            if i not in phase:
-                continue
-            t = (np.arange(frames) + phase[i]) / sample_rate
-            oscillator = np.sin(2 * np.pi * notes[i] * t)
+    for i in list(envelope):
+        if i not in phase:
+            continue
+        t = (np.arange(frames) + phase[i]) / sample_rate
+        oscillator = np.sin(2 * np.pi * notes[i] * t)
 
-            wave += oscillator * voice_gain
+        env = create_envelope(i, frames)
+
+        wave += oscillator * env * voice_gain
+
+        phase[i] += frames
 
     wave *= master_gain
 
     outdata[:, 0] = wave
 
-    for key in list(phase):
-        phase[key] = phase[key] + frames
+    for key in list(envelope):
+        if envelope[key]["state"] == "finished":
+            del envelope[key]
+            del phase[key]
 
 stream = sd.OutputStream(
     samplerate=sample_rate,
