@@ -1,4 +1,5 @@
 import sys
+import os
 import cv2 as cv
 import mediapipe as mp
 from mediapipe.tasks import python
@@ -17,7 +18,12 @@ from PySide6.QtWidgets import (
     QComboBox
 )
 
-baseOptions = python.BaseOptions(model_asset_path = "hand_landmarker.task")
+def resource_path(filename):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, filename)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
+baseOptions = python.BaseOptions(model_asset_path = resource_path("hand_landmarker.task"))
 options = vision.HandLandmarkerOptions(base_options = baseOptions,
                                        num_hands = 2)
 detector = vision.HandLandmarker.create_from_options(options)
@@ -94,7 +100,7 @@ class CameraWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("WebCam Viewer")
+        self.setWindowTitle("Handmonium")
         self.resize(800, 600)
 
         self.cameraLabel = QLabel()
